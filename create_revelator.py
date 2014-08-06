@@ -45,9 +45,13 @@ if __name__ == '__main__':
     try:
         name = sys.argv[1];
         size = sys.argv[2];
-        version = sys.argv[3];
     except IndexError:
         print('python create_revelator.py <name> <size> <snapshot_version>');
         quit();
 
+    try:
+        version = sys.argv[3];
+    except:
+        version = '10';
+ 
     create_revelator(name,size,version);

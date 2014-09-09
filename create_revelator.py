@@ -2,6 +2,7 @@ import skiff
 from skiff.Image import SkiffImage
 import requests
 import sys
+import config
 
 def get_images():
 
@@ -28,7 +29,7 @@ def get_images():
 def create_revelator(name,size,version):
 
     #Authenticate
-    skiff.token('3461da98023e93f0a40e1058092314fbbd5cf057ceb1f1ae1e4d2d6d0d6e2209');
+    skiff.rig(config.TOKEN)
 
     #Try to find the image ID for the version specified
     image_id = None;

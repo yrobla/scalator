@@ -7,9 +7,9 @@ import skiff
 def dropletname_to_ip(name):
 
     #Authenticate with Digital Ocean
-    skiff.token('3461da98023e93f0a40e1058092314fbbd5cf057ceb1f1ae1e4d2d6d0d6e2209');    
+    s = skiff.rig('3461da98023e93f0a40e1058092314fbbd5cf057ceb1f1ae1e4d2d6d0d6e2209');    
 
-    for droplet in skiff.Droplet.all():    
+    for droplet in s.Droplet.all():    
 
         if droplet.name == name:
             return droplet.v4[1].ip_address;

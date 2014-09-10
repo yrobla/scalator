@@ -1,0 +1,10 @@
+git+https://github.com/Shrugs/skiff.git
+python-daemon
+extras
+pika
+threading
+logging
+json
+pyyaml
+sqlalchemy
+paramiko

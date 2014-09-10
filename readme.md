@@ -1,7 +1,7 @@
 Revisely autoscaling tools
 ==========================
 
-This readme is written using Markdown syntax. Although it should be pretty well readable in bare form, you might be even easier to read from a Markdown parser, like http://dillinger.io . 
+This readme is written using Markdown syntax. Although it should be pretty well readable in bare form, it might be even easier to read from a Markdown parser, like http://dillinger.io . 
 
 1. Installation
 ---------------
@@ -14,7 +14,7 @@ python <script_name>
 
 However, there are a number of Python libraries that might not be installed, namely:
 
-* __skiff__, to be installed with ```sudo pip install skiff```, used for communication with DigitalOcean.
+* __skiff__ v0.9.6, to be installed with ```sudo pip install skiff==0.9.6```, used for communication with DigitalOcean.
 * __requests__, to be installed with ```sudo pip install requests```, also used for communication with DigitalOcean.
 * __pysftp__, to be installed with ```sudo pip install pysftp```, used to log in on servers.
 

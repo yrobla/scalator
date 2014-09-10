@@ -64,7 +64,7 @@ An argument is consists of three parts:
 * A three-letter code indicating the language:
    * eng: English
    * nld: Dutch
-   * esp: Spanish
+   * spa: Spanish
 
 For example, this activates both Valkuil and Fowlt:
 
@@ -89,7 +89,9 @@ This script destroys a Revelator if it has nothing to do. It works like this:
 python fire_revelator.py <revelator_name>
 ```
 
-This procedure was set up in such a way that it will only stop if it has been doing nothing for 1 hour, otherwise the Revelator will ignore the command. In other words, you're free to run this command as often as you want, as it will only work if destroying the Revelator won't hurt anyone; the only risk is that you destroy __all__ Revelators. For questions and suggestions for this script, please go to: https://revise.ly/redmine/issues/289
+Notes:
+* This works only for Revelator snapshots version 11 and higher
+* This procedure was set up in such a way that it will only stop if it has been doing nothing for 1 hour, otherwise the Revelator will ignore the command. In other words, you're free to run this command as often as you want, as it will only work if destroying the Revelator won't hurt anyone; the only risk is that you destroy __all__ Revelators. For questions and suggestions for this script, please go to: https://revise.ly/redmine/issues/289
 
 5. Misc
 -------

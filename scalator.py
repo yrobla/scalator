@@ -6,6 +6,8 @@ import time
 import yaml
 import nodedb
 import nodeutils as utils
+import pika
+import manager
 
 MINS = 60
 HOURS = 60 * MINS
@@ -52,7 +54,7 @@ class NodeCompleteThread(threading.Thread):
 class NodeUpdateListener(threading.Thread):
     log = logging.getLogger("scalator.NodeUpdateListener")
 
-    def __init__(self, scalator, addr):
+    def __init__(self, scalator, adr):
         threading.Thread.__init__(self, name='NodeUpdateListener')
         self.scalator = scalator
         parameters = pika.URLParameters(adr)
@@ -87,6 +89,8 @@ class NodeUpdateListener(threading.Thread):
             pass
         elif topic == 'onFinalized':
             self.handleCompletePhase(nodename)
+        elif topic == 'demand':
+            self.scalator.needed_workers += 1
         else:
             raise Exception("Received job for unhandled phase: %s" %
                             topic)
@@ -146,7 +150,6 @@ class NodeLauncher(threading.Thread):
             self.log.debug("Launching node id: %s" % self.node_id)
             try:
                 self.node = session.getNode(self.node_id)
-                self.manager = self.scalator.getProviderManager()
             except Exception:
                 self.log.exception("Exception preparing to launch node id: %s:"
                                    % self.node_id)
@@ -179,13 +182,13 @@ class NodeLauncher(threading.Thread):
         self.node.hostname = hostname
 
         self.log.info("Creating server with hostname %s for node id: %s" % (hostname, self.node_id))
-        server_id = self.manager.createServer(hostname)
+        server_id = self.scalator.manager.createServer(hostname)
         self.node.external_id = server_id
         session.commit()
 
         self.log.debug("Waiting for server %s for node id: %s" %
                        (server_id, self.node.id))
-        server = self.manager.waitForServer(server_id, self.launch_timeout)
+        server = self.scalator.manager.waitForServer(server_id, self.launch_timeout)
         if server['status'] != 'ACTIVE':
             raise LaunchStatusException("Server %s for node id: %s "
                                         "status: %s" %
@@ -222,9 +225,10 @@ class Scalator(threading.Thread):
         self.watermark_sleep = watermark_sleep
         self._stopped = False
         self.config = None
-        self.rabbit_context = None
         self._delete_threads = {}
         self._delete_threads_lock = threading.Lock()
+        self.needed_workers = 0
+        self.manager = manager.ScalatorManager()
 
     def stop(self):
         self._stopped = True
@@ -232,8 +236,6 @@ class Scalator(threading.Thread):
             for z in self.config.rabbit_publishers.values():
                 z.listener.stop()
                 z.listener.join()
-        if self.rabbit_context:
-            self.rabbit_context.destroy()
 
     def loadConfig(self):
         self.log.debug("Loading configuration")
@@ -260,6 +262,10 @@ class Scalator(threading.Thread):
             z.name = addr
             z.listener = None
             newconfig.rabbit_publishers[z.name] = z
+
+        newconfig.dburi = config.get('dburi')
+        newconfig.boot_timeout = config.get('boot-timeout')
+        newconfig.launch_timeout = config.get('launch-timeout')
         return newconfig
 
     def reconfigureDatabase(self, config):
@@ -280,10 +286,6 @@ class Scalator(threading.Thread):
             config.rabbit_publishers = self.config.rabbit_publishers
             return
 
-        if self.rabbit_context:
-            self.log.debug("Stopping listeners")
-            self.rabbit_context.destroy()
-        self.rabbit_context = pika.Context()
         for z in config.rabbit_publishers.values():
             self.log.debug("Starting listener for %s" % z.name)
             z.listener = NodeUpdateListener(self, z.name)
@@ -295,28 +297,28 @@ class Scalator(threading.Thread):
     def getDB(self):
         return self.config.db
 
+    def getNeededWorkers(self):
+        return self.needed_workers
+
     def getNeededNodes(self, session):
         self.log.debug("Beginning node launch calculation")
         label_demand = self.getNeededWorkers()
 
-        for name, demand in label_demand.items():
-            self.log.debug("  Demand: %s: %s" % (name, demand))
-
         nodes = session.getNodes()
 
-        def count_nodes(label_name, state):
+        def count_nodes(state):
             return len([n for n in nodes
                         if (n.state == state)])
 
         # Actual need is demand - (ready + building)
         start_demand = 0
         min_demand = 1
-        n_ready = count_nodes(label.name, nodedb.READY)
-        n_building = count_nodes(label.name, nodedb.BUILDING)
-        n_test = count_nodes(label.name, nodedb.TEST)
+        n_ready = count_nodes(nodedb.READY)
+        n_building = count_nodes(nodedb.BUILDING)
+        n_test = count_nodes(nodedb.TEST)
         ready = n_ready + n_building + n_test
         demand = max(min_demand - ready, 0)
-        self.log.debug("  Deficit: %s (start: %s min: %s ready: %s)" %
+        self.log.debug("  Deficit: (start: %s min: %s ready: %s)" %
                            (start_demand, min_demand,
                             ready))
 
@@ -325,16 +327,12 @@ class Scalator(threading.Thread):
     def updateConfig(self):
         config = self.loadConfig()
         self.reconfigureDatabase(config)
-        self.reconfigureCrons(config)
         self.reconfigureUpdateListeners(config)
         self.setConfig(config)
 
     def startup(self):
         self.updateConfig()
 
-        # Currently nodepool can not resume building a node after a
-        # restart.  To clean up, mark all building nodes for deletion
-        # when the daemon starts.
         with self.getDB().getSession() as session:
             for node in session.getNodes(state=nodedb.BUILDING):
                 self.log.info("Setting building node id: %s to delete "
@@ -359,12 +357,8 @@ class Scalator(threading.Thread):
         nodes_to_launch = self.getNeededNodes(session)
 
         self.log.info("Need to launch %s nodes" % nodes_to_launch)
-        for i in range(num_to_launch):
-            snap_image = session.getCurrentSnapshotImage()
-            if not snap_image:
-                self.log.debug("No current image")
-            else:
-                self.launchNode(session)
+        for i in range(nodes_to_launch):
+            self.launchNode(session)
 
     def launchNode(self, session):
         try:
@@ -375,7 +369,9 @@ class Scalator(threading.Thread):
 
     def _launchNode(self, session):
         node = session.createNode()
-        t = NodeLauncher(self, provider, node.id, timeout, launch_timeout)
+        timeout = self.config.boot_timeout
+        launch_timeout = self.config.launch_timeout
+        t = NodeLauncher(self, node.id, timeout, launch_timeout)
         t.start()
 
     def deleteNode(self, node_id):
@@ -420,3 +416,16 @@ class Scalator(threading.Thread):
                 continue
             self.deleteNode(node.id)
         self.log.debug("Finished periodic check")
+
+class ConfigValue(object):
+    pass
+
+
+class Config(ConfigValue):
+    pass
+
+class Cron(ConfigValue):
+    pass
+
+class RabbitPublisher(ConfigValue):
+    pass

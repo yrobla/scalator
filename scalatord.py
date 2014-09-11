@@ -27,7 +27,7 @@ def stack_dump_handler(signum, frame):
         label = '%s (%s)' % (thread_name, thread_id)
         log_str += "Thread: %s\n" % label
         log_str += "".join(traceback.format_stack(stack_frame))
-    log = logging.getLogger("nodepool.stack_dump")
+    log = logging.getLogger("scalator.stack_dump")
     log.debug(log_str)
     signal.signal(signal.SIGUSR2, stack_dump_handler)
 
@@ -66,7 +66,7 @@ class ScalatorDaemon(object):
                             help='path to log config file')
         parser.add_argument('-p', dest='pidfile',
                             help='path to pid file',
-                            default='/var/run/nodepool/nodepool.pid')
+                            default='/var/run/scalator/scalator.pid')
         self.args = parser.parse_args()
 
     def setup_logging(self):
@@ -82,7 +82,7 @@ class ScalatorDaemon(object):
                                        '%(message)s')
 
     def exit_handler(self, signum, frame):
-        self.pool.stop()
+        self.scalator.stop()
 
     def term_handler(self, signum, frame):
         os._exit(0)

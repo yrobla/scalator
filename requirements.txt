@@ -8,3 +8,5 @@ json
 pyyaml
 sqlalchemy
 paramiko
+MySQL-python
+six

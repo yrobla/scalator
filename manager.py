@@ -3,20 +3,57 @@ import paramiko
 import threading
 import time
 from task_manager import Task, TaskManager, ManagerStoppedException
+import skiff
+from skiff.Image import SkiffImage
 
 SERVER_LIST_AGE = 5   # How long to keep a cached copy of the server list
 ITERATE_INTERVAL = 2  # How long to sleep while waiting for something
                       # in a loop
 
+def iterate_timeout(max_seconds, purpose):
+    start = time.time()
+    count = 0
+    while (time.time() < start + max_seconds):
+        count += 1
+        yield count
+        time.sleep(ITERATE_INTERVAL)
+    raise Exception("Timeout waiting for %s" % purpose)
+
+class NotFound(Exception):
+    pass
+
 class CreateServerTask(Task):
     def main(self, client):
-        server = client.servers.create(**self.args)
-        return str(server.id)
+        # Try to find the image ID for the version specified
+        images= client.Image.all();
+        for image in images:
+            if image.name == 'Revelator v'+str(self.args["version"]):
+                image_id = image.id
+                break
+
+        # Create the droplet
+        droplet_id = client.Droplet.create(name='rev.'+self.args["name"], region='ams2',
+            size=self.args["size"],
+            image=image_id, private_networking=True,
+            ssh_keys=client.Key.all())
+        droplet_id.wait_till_done()
+
+        return str(droplet_id)
+
+def make_server_dict(server):
+    d = dict(id=str(server.id),
+             name=server.name,
+             status=server.status,
+             addresses=server.v4)
+
+    # public ip is the last one
+    d['public_v4'] = server.v4[-1]
+    return d
 
 class GetServerTask(Task):
     def main(self, client):
         try:
-            server = client.servers.get(self.args['server_id'])
+            server = client.Droplet.get(self.args['server_id'])
         except novaclient.exceptions.NotFound:
             raise NotFound()
         return make_server_dict(server)
@@ -27,14 +64,15 @@ class DeleteServerTask(Task):
 
 class ListServersTask(Task):
     def main(self, client):
-        servers = client.servers.list()
+        servers = client.Droplet.all()
         return [make_server_dict(server) for server in servers]
 
 class ScalatorManager(TaskManager):
     log = logging.getLogger("scalator.ScalatorManager")
 
-    def __init__(self):
+    def __init__(self, scalator):
         super(ScalatorManager, self).__init__(None)
+        self.scalator = scalator
         self._client = self._getClient()
         self._servers = []
         self._servers_time = 0
@@ -42,11 +80,11 @@ class ScalatorManager(TaskManager):
 
     def _getClient(self):
         # get digitalocean connection
-        return None
+        return skiff.rig(self.scalator.config.provider_token)
 
     def createServer(self, name):
         # digital ocean create server
-        create_args = dict(name=name)
+        create_args = dict(name=name, version=self.scalator.config.provider_version, size=self.scalator.config.provider_size, client=self._client)
         return self.submitTask(CreateServerTask(**create_args))
 
     def getServer(self, server_id):

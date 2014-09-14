@@ -265,13 +265,7 @@ class NodeUpdateListener():
 
         """
 
-        # message is splitted into language|id|body
-        set = body.split('|')
-        
-        # here we will update db ...
-
         # increase demand
-        print "i increase node"
         self.scalator.increaseNeededNodes()
 
         # ack message
@@ -416,6 +410,7 @@ class NodeLauncher(threading.Thread):
 
             try:
                 start_time = time.time()
+                print "in launch node"
                 dt = self.launchNode(session)
                 failed = False
             except Exception as e:
@@ -437,10 +432,11 @@ class NodeLauncher(threading.Thread):
         start_time = time.time()
         timestamp = int(start_time)
 
-        hostname = 'host_%s' % str(self.node.id)
+        hostname = 'host-%s' % str(self.node.id)
         self.node.hostname = hostname
 
         self.log.info("Creating server with hostname %s for node id: %s" % (hostname, self.node_id))
+        print "In create server"
         server_id = self.scalator.manager.createServer(hostname)
         self.node.external_id = server_id
         session.commit()
@@ -488,7 +484,6 @@ class Scalator(threading.Thread):
         self._delete_threads = {}
         self._delete_threads_lock = threading.Lock()
         self.needed_workers = 0
-        self.manager = manager.ScalatorManager()
 
     def stop(self):
         self._stopped = True
@@ -496,6 +491,8 @@ class Scalator(threading.Thread):
             for z in self.config.rabbit_publishers.values():
                 z.listener.stop()
                 z.listener.join()
+        self.manager.stop()
+        self.manager.join()
 
     def loadConfig(self):
         self.log.debug("Loading configuration")
@@ -526,6 +523,9 @@ class Scalator(threading.Thread):
         newconfig.dburi = config.get('dburi')
         newconfig.boot_timeout = config.get('boot-timeout')
         newconfig.launch_timeout = config.get('launch-timeout')
+        newconfig.provider_token = config.get('provider-token')
+        newconfig.provider_version = config.get('provider-version')
+        newconfig.provider_size = config.get('provider-size')
         return newconfig
 
     def increaseNeededNodes(self):
@@ -534,7 +534,6 @@ class Scalator(threading.Thread):
         lock.acquire()
         self.needed_workers += 1
         lock.release()
-        print self.needed_workers
 
     def decreaseNeededNodes(self):
         # lock var, update it and unlock
@@ -566,7 +565,6 @@ class Scalator(threading.Thread):
             z.listener = NodeUpdateListener(self, z.name)
             try:
                 threading.Thread(target=z.listener.run).start()
-                print "after run"
             except KeyboardInterrupt:
                 z.listener.stop()
 
@@ -609,6 +607,8 @@ class Scalator(threading.Thread):
         self.reconfigureDatabase(config)
         self.reconfigureUpdateListeners(config)
         self.setConfig(config)
+        self.manager = manager.ScalatorManager(self)
+        self.manager.start()        
 
     def startup(self):
         self.updateConfig()
@@ -635,7 +635,6 @@ class Scalator(threading.Thread):
             time.sleep(self.watermark_sleep)
 
     def _run(self, session):
-        print "in _run"
         nodes_to_launch = self.getNeededNodes(session)
 
         self.log.info("Need to launch %s nodes" % nodes_to_launch)

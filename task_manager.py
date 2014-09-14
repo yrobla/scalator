@@ -37,22 +37,26 @@ class Task(object):
             self.exception(e, sys.exc_info()[2])
 
 class TaskManager(threading.Thread):
-    log = logging.getLogger("nodepool.TaskManager")
+    log = logging.getLogger("scalator.TaskManager")
 
     def __init__(self, client):
+        print "in task manager"
         super(TaskManager, self).__init__()
         self.daemon = True
         self.queue = Queue.Queue()
         self._running = True
         self._client = None
+        self.rate = 1000
 
     def stop(self):
         self._running = False
         self.queue.put(None)
 
     def run(self):
+        print "in task run"
         last_ts = 0
         while True:
+            print "in task queue"
             task = self.queue.get()
             if not task:
                 if not self._running:
@@ -60,7 +64,7 @@ class TaskManager(threading.Thread):
                 continue
             while True:
                 delta = time.time() - last_ts
-                if delta >= self.rate:
+                if delta >= self.rate: 
                     break
                 time.sleep(self.rate - delta)
             self.log.debug("Manager running task %s (queue: %s)" %
@@ -73,8 +77,11 @@ class TaskManager(threading.Thread):
             self.queue.task_done()
 
     def submitTask(self, task):
+        print "in submit task"
         if not self._running:
             raise ManagerStoppedException(
                 "Manager is no longer running")
+        print "put in queue"
         self.queue.put(task)
+        print "after queue"
         return task.wait()

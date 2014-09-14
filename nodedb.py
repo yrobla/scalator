@@ -22,7 +22,7 @@ STATE_NAMES = {
     TEST: 'test',
     }
 
-from sqlalchemy import Table, Column, Integer, String, \
+from sqlalchemy import Table, Column, Integer, String, Text, \
     MetaData, create_engine
 from sqlalchemy.orm import scoped_session, mapper, relationship, foreign
 from sqlalchemy.orm.session import Session, sessionmaker
@@ -48,11 +48,14 @@ node_table = Table(
 
 class Node(object):
     def __init__(self, hostname=None, external_id=None, ip=None,
-                 state=BUILDING):
+                 state=BUILDING, language=None, assignment_id=None, body=None):
         self.external_id = external_id
         self.ip = ip
         self.hostname = hostname
         self.state = state
+        self.language = language
+        self.assignment_id = assignment_id
+        self.body = body
 
     def delete(self):
         session = Session.object_session(self)

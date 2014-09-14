@@ -32,13 +32,14 @@ class CreateServerTask(Task):
                 break
 
         # Create the droplet
-        droplet_id = client.Droplet.create(name='rev.'+self.args["name"], region='ams2',
+        droplet_name = 'rev.'+self.args['name']
+        droplet = client.Droplet.create(name=droplet_name, region='ams2',
             size=self.args["size"],
             image=image_id, private_networking=True,
             ssh_keys=client.Key.all())
-        droplet_id.wait_till_done()
-
-        return str(droplet_id)
+        droplet.wait_till_done()
+        droplet = droplet.refresh()
+        return make_server_dict(droplet)
 
 def make_server_dict(server):
     d = dict(id=str(server.id),
@@ -88,7 +89,14 @@ class ScalatorManager(TaskManager):
         return self.submitTask(CreateServerTask(**create_args))
 
     def getServer(self, server_id):
-        return self.submitTask(GetServerTask(server_id=server_id))
+        print "in get server"
+        print server_id
+        try:
+            server = self._client.Droplet.get(server_id)
+        except Exception as e:
+            print str(e)
+            raise NotFound()
+        return make_server_dict(server)
 
     def getServerFromList(self, server_id):
         for s in self.listServers():

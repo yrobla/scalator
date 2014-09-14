@@ -437,29 +437,21 @@ class NodeLauncher(threading.Thread):
 
         self.log.info("Creating server with hostname %s for node id: %s" % (hostname, self.node_id))
         print "In create server"
-        server_id = self.scalator.manager.createServer(hostname)
-        self.node.external_id = server_id
+        server = self.scalator.manager.createServer(hostname)
+        self.node.external_id = server.get('id')
         session.commit()
-
-        self.log.debug("Waiting for server %s for node id: %s" %
-                       (server_id, self.node.id))
-        server = self.scalator.manager.waitForServer(server_id, self.launch_timeout)
-        if server['status'] != 'ACTIVE':
-            raise LaunchStatusException("Server %s for node id: %s "
-                                        "status: %s" %
-                                        (server_id, self.node.id,
-                                         server['status']))
 
         ip = server.get('public_v4')
         if not ip:
             raise LaunchNetworkException("Unable to find public IP of server")
 
-        self.node.ip = ip
+        # now execute fire revelator
+        self.node.ip = ip.ip_address
         self.log.debug("Node id: %s is running, ip: %s, testing ssh" %
-                       (self.node.id, ip))
-        connect_kwargs = dict(key_filename=self.image.private_key)
+                       (self.node.id, ip.ip_address))
+        connect_kwargs = dict(key_filename=self.scalator.config.private_key)
 
-        if not utils.ssh_connect(ip, self.image.username,
+        if not utils.ssh_connect(ip.ip_address, self.scalator.config.private_user,
                                  connect_kwargs=connect_kwargs,
                                  timeout=self.timeout):
             raise LaunchAuthException("Unable to connect via ssh")
@@ -526,6 +518,9 @@ class Scalator(threading.Thread):
         newconfig.provider_token = config.get('provider-token')
         newconfig.provider_version = config.get('provider-version')
         newconfig.provider_size = config.get('provider-size')
+
+        newconfig.private_user = config.get('private-user')
+        newconfig.private_key = config.get('private-key')
         return newconfig
 
     def increaseNeededNodes(self):

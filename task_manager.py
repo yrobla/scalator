@@ -56,7 +56,6 @@ class TaskManager(threading.Thread):
         print "in task run"
         last_ts = 0
         while True:
-            print "in task queue"
             task = self.queue.get()
             if not task:
                 if not self._running:

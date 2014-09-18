@@ -115,6 +115,23 @@ class NodeLauncher(threading.Thread):
                     self.log.exception("Exception deleting node id: %s:" %
                                        self.node_id)
 
+    def runReadyScript(self, node):
+        self.log.info("In run ready script")
+        connect_kwargs = dict(key_filename=self.scalator.config.private_key)
+        host = utils.ssh_connect(node.ip, self.scalator.config.private_user,
+                                  connect_kwargs=connect_kwargs,
+                                  timeout=self.timeout)
+        if not host:
+            raise Exception("Unable to log in via SSH")
+
+        # add all languages to the node
+        self.log.info("Languages are %s" % (",".join(self.scalator.config.languages)))
+        for language in self.scalator.config.languages:
+            host.ssh("add %s language to node" % language,
+                     "python /root/tools/edit_languages.py add %s" %
+                     language, output=True)
+
+
     def launchNode(self, session):
         start_time = time.time()
         timestamp = int(start_time)
@@ -141,6 +158,9 @@ class NodeLauncher(threading.Thread):
                                  connect_kwargs=connect_kwargs,
                                  timeout=self.timeout):
             raise LaunchAuthException("Unable to connect via ssh")
+
+        # execute ready script
+        self.runReadyScript(self.node)
 
         # Save the elapsed time for statsd
         dt = int((time.time() - start_time) * 1000)
@@ -175,7 +195,6 @@ class RabbitListener(threading.Thread):
                 q = channel.queue_declare(queue=queue, passive=True, durable=True, exclusive=False)
                 total_messages += q.method.message_count
 
-        total_messages = 11
         self.scalator.setNeededWorkers(int(math.ceil(total_messages/self.scalator.config.messages_per_node)))
         self.connection = None
         time.sleep(WATERMARK_SLEEP)
@@ -232,6 +251,10 @@ class Scalator(threading.Thread):
 
         for queue in config['rabbit-queues']:
             newconfig.rabbit_queues.append(queue)
+
+        newconfig.languages = []
+        for language in config['languages']:
+            newconfig.languages.append(language)
 
         newconfig.dburi = config.get('dburi')
         newconfig.boot_timeout = config.get('boot-timeout')

@@ -142,6 +142,7 @@ class NodeLauncher(threading.Thread):
         self.log.info("Creating server with hostname %s for node id: %s" % (hostname, self.node_id))
         server = self.scalator.manager.createServer(hostname)
         self.node.external_id = server.get('id')
+        self.node.nodename = server.get('name')
         session.commit()
 
         ip = server.get('public_v4')
@@ -266,6 +267,7 @@ class Scalator(threading.Thread):
         newconfig.private_user = config.get('private-user')
         newconfig.private_key = config.get('private-key')
         newconfig.messages_per_node = config.get('messages-per-node')
+
         return newconfig
 
     def reconfigureDatabase(self, config):
@@ -324,6 +326,7 @@ class Scalator(threading.Thread):
         config = self.loadConfig()
         self.reconfigureDatabase(config)
         self.setConfig(config)
+
         self.manager = manager.ScalatorManager(self)
         self.manager.start()        
         self.reconfigureUpdateListeners(config)

@@ -48,14 +48,11 @@ node_table = Table(
 
 class Node(object):
     def __init__(self, hostname=None, external_id=None, ip=None,
-                 state=BUILDING, language=None, assignment_id=None, body=None):
+                 state=BUILDING):
         self.external_id = external_id
         self.ip = ip
         self.hostname = hostname
         self.state = state
-        self.language = language
-        self.assignment_id = assignment_id
-        self.body = body
 
     def delete(self):
         session = Session.object_session(self)

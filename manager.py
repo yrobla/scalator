@@ -65,6 +65,7 @@ class DeleteServerTask(Task):
 
 class ListServersTask(Task):
     def main(self, client):
+        print "in list servers task"
         servers = client.Droplet.all()
         return [make_server_dict(server) for server in servers]
 
@@ -144,6 +145,7 @@ class ScalatorManager(TaskManager):
                 return
 
     def listServers(self):
+        print "In list servers"
         if time.time() - self._servers_time >= SERVER_LIST_AGE:
             # Since we're using cached data anyway, we don't need to
             # have more than one thread actually submit the list
@@ -153,6 +155,7 @@ class ScalatorManager(TaskManager):
             # data until it succeeds.
             if self._servers_lock.acquire(False):
                 try:
+                    print "submit task list servers"
                     self._servers = self.submitTask(ListServersTask())
                     self._servers_time = time.time()
                 finally:

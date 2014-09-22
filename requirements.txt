@@ -10,3 +10,4 @@ sqlalchemy
 paramiko
 MySQL-python
 six
+prettytable

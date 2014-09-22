@@ -74,8 +74,9 @@ class ScalatorCmd(object):
         with self.scalator.getDB().getSession() as session:
                 scalator_manager = manager.ScalatorManager(self.scalator)
                 scalator_manager.start()
-                print "in list servers"
                 for server in scalator_manager.listServers():
+                    print server['id']
+                    print session.getNodeByExternalID(server['id'])
                     if not session.getNodeByExternalID(server['id']):
                         t.add_row([server['name'], server['id'],
                                    server['public_v4']])

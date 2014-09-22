@@ -144,8 +144,10 @@ class NodeDatabaseSession(object):
         return nodes[0]
 
     def getNodeByExternalID(self, external_id):
+        nodes = self.session().query(Node).all()
         nodes = self.session().query(Node).filter_by(
             external_id=external_id).all()
         if not nodes:
             return None
+        return nodes[0]
 

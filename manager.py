@@ -55,13 +55,9 @@ class GetServerTask(Task):
     def main(self, client):
         try:
             server = client.Droplet.get(self.args['server_id'])
-        except novaclient.exceptions.NotFound:
+        except:
             raise NotFound()
         return make_server_dict(server)
-
-class DeleteServerTask(Task):
-    def main(self, client):
-        client.servers.delete(self.args['server_id'])
 
 class ListServersTask(Task):
     def main(self, client):
@@ -101,6 +97,7 @@ class ScalatorManager(TaskManager):
 
     def getServerFromList(self, server_id):
         for s in self.listServers():
+            print s['id']
             if s['id'] == server_id:
                 return s
         raise NotFound()
@@ -145,7 +142,6 @@ class ScalatorManager(TaskManager):
                 return
 
     def listServers(self):
-        print "In list servers"
         if time.time() - self._servers_time >= SERVER_LIST_AGE:
             # Since we're using cached data anyway, we don't need to
             # have more than one thread actually submit the list
@@ -162,14 +158,12 @@ class ScalatorManager(TaskManager):
                     self._servers_lock.release()
         return self._servers
 
-    def deleteServer(self, server_id):
-        return self.submitTask(DeleteServerTask(server_id=server_id))
-
     def cleanupServer(self, server_id):
         done = False
         while not done:
             try:
-                server = self.getServerFromList(server_id)
+                server = self._client.Droplet.get(server_id)
+                server.destroy()
                 done = True
             except NotFound:
                 # If we have old data, that's fine, it should only
@@ -183,6 +177,4 @@ class ScalatorManager(TaskManager):
                     done = True
 
         # This will either get the server or raise an exception
-        server = self.getServerFromList(server_id)
         self.log.debug('Deleting server %s' % server_id)
-        self.deleteServer(server_id)

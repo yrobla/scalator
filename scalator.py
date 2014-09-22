@@ -9,6 +9,7 @@ import nodeutils as utils
 import manager
 import math
 import pika
+import apscheduler.scheduler
 
 MINS = 60
 HOURS = 60 * MINS
@@ -203,6 +204,7 @@ class RabbitListener(threading.Thread):
 
 class Scalator(threading.Thread):
     log = logging.getLogger("scalator.Scalator")
+    logging.getLogger('pika').setLevel(logging.INFO)
 
     def __init__(self, configfile, watermark_sleep=WATERMARK_SLEEP):
         threading.Thread.__init__(self, name='Scalator')
@@ -213,6 +215,7 @@ class Scalator(threading.Thread):
         self._delete_threads = {}
         self._delete_threads_lock = threading.Lock()
         self.needed_workers = 0
+        self.apsched = None
 
     def stop(self):
         self._stopped = True
@@ -322,9 +325,89 @@ class Scalator(threading.Thread):
 
         return demand
 
+    def cleanupOneNode(self, session, node):
+        now = time.time()
+        time_in_state = now - node.state_time
+        if (node.state in [nodedb.READY, nodedb.HOLD]):
+            return
+        delete = False
+        if (node.state == nodedb.DELETE):
+            delete = True
+        elif (node.state == nodedb.TEST and
+              time_in_state > TEST_CLEANUP):
+            delete = True
+        elif time_in_state > NODE_CLEANUP:
+            delete = True
+        if delete:
+            try:
+                self.deleteNode(node.id)
+            except Exception:
+                self.log.exception("Exception deleting node id: "
+                                   "%s" % node.id)
+
+    def periodicCleanup(self):
+        # This function should be run periodically to clean up any hosts
+        # that may have slipped through the cracks, as well as to remove
+        # old images.
+
+        self.log.debug("Starting periodic cleanup")
+
+        for k, t in self._delete_threads.items()[:]:
+            if not t.isAlive():
+                del self._delete_threads[k]
+
+        node_ids = []
+        with self.getDB().getSession() as session:
+            for node in session.getNodes():
+                node_ids.append(node.id)
+
+        for node_id in node_ids:
+            try:
+                with self.getDB().getSession() as session:
+                    node = session.getNode(node_id)
+                    if node:
+                        self.cleanupOneNode(session, node)
+            except Exception:
+                self.log.exception("Exception cleaning up node id %s:" %
+                                   node_id)
+        self.log.debug("Finished periodic cleanup")
+
+    def _doPeriodicCleanup(self):
+        try:
+            self.periodicCleanup()
+        except Exception:
+            self.log.exception("Exception in periodic cleanup:")
+
+    def reconfigureCrons(self, config):
+        cron_map = {
+            'cleanup': self._doPeriodicCleanup,
+            'check': self._doPeriodicCheck
+        }
+
+        if not self.apsched:
+            self.apsched = apscheduler.scheduler.Scheduler()
+            self.apsched.start()
+
+        for c in config.crons.values():
+            if ((not self.config) or
+                c.timespec != self.config.crons[c.name].timespec):
+                if self.config and self.config.crons[c.name].job:
+                    self.apsched.unschedule_job(self.config.crons[c.name].job)
+                parts = c.timespec.split()
+                minute, hour, dom, month, dow = parts[:5]
+                c.job = self.apsched.add_cron_job(
+                    cron_map[c.name],
+                    day=dom,
+                    day_of_week=dow,
+                    hour=hour,
+                    minute=minute)
+            else:
+                c.job = self.config.crons[c.name].job
+
     def updateConfig(self):
         config = self.loadConfig()
         self.reconfigureDatabase(config)
+        self.reconfigureCrons(config)
         self.setConfig(config)
 
         self.manager = manager.ScalatorManager(self)
@@ -390,14 +473,24 @@ class Scalator(threading.Thread):
             self._delete_threads_lock.release()
 
     def _deleteNode(self, session, node):
-        self.log.debug("Deleting node id: %s which has been in %s "
-                       "state for %s hours" %
-                       (node.id, nodedb.STATE_NAMES[node.state],
-                        (time.time() - node.state_time) / (60 * 60)))
+        if node.state_time:
+            self.log.debug("Deleting node id: %s which has been in %s "
+                           "state for %s hours" %
+                           (node.id, nodedb.STATE_NAMES[node.state],
+                           (time.time() - node.state_time) / (60 * 60)))
         # Delete a node
         if node.state != nodedb.DELETE:
             # Don't write to the session if not needed.
             node.state = nodedb.DELETE
+
+        # check if we need to delete it on the manager
+        if node.external_id:
+            self.log.debug('Deleting server %s for node id %s' %
+                (node.external_id, node.id))
+            self.manager.cleanupServer(node.external_id)
+            self.manager.waitForServerDeletion(node.external_id)
+            node.external_id = None
+
         node.delete()
         self.log.info("Deleted node id: %s" % node.id)
 

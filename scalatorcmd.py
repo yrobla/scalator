@@ -86,9 +86,11 @@ class ScalatorCmd(object):
     def delete(self):
         with self.scalator.getDB().getSession() as session:
             node = session.getNode(self.args.id)
-            if node:
-                node.state = nodedb.DELETE
-                self.list(node_id=node.id)
+
+            self.scalator.manager = manager.ScalatorManager(self.scalator)
+            self.scalator.manager.start()
+            self.scalator._deleteNode(session, node)
+            self.scalator.manager.stop()
 
     def main(self):
         self.scalator = scalator.Scalator(self.args.config)

@@ -487,8 +487,7 @@ class Scalator(threading.Thread):
         if node.external_id:
             self.log.debug('Deleting server %s for node id %s' %
                 (node.external_id, node.id))
-            self.manager.cleanupServer(node.external_id)
-            self.manager.waitForServerDeletion(node.external_id)
+            self.manager.cleanupServer(node.nodename)
             node.external_id = None
 
         node.delete()

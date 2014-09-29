@@ -2,6 +2,7 @@ import logging
 import paramiko
 import threading
 import time
+import nodeutils as utils
 from task_manager import Task, TaskManager, ManagerStoppedException
 import skiff
 from skiff.Image import SkiffImage
@@ -158,12 +159,20 @@ class ScalatorManager(TaskManager):
                     self._servers_lock.release()
         return self._servers
 
-    def cleanupServer(self, server_id):
+    def cleanupServer(self, server_id, ip):
         done = False
         while not done:
             try:
-                server = self._client.Droplet.get(server_id)
-                server.destroy()
+                # login by ssh into the server and send flag to delete
+                connect_kwargs = dict(key_filename=self.scalator.config.private_key)
+                host = utils.ssh_connect(ip, self.scalator.config.private_user,
+                    connect_kwargs=connect_kwargs, timeout=600)
+                if not host:
+                    raise Exception("Unable to log in via SSH")
+
+                # write a flag file
+                host.ssh("send delete flag file", "touch /root/startstop/STOP")
+
                 done = True
             except NotFound:
                 # If we have old data, that's fine, it should only

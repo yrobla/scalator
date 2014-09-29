@@ -10,6 +10,7 @@ import manager
 import math
 import pika
 import apscheduler.scheduler
+from jinja2 import Environment, PackageLoader
 
 MINS = 60
 HOURS = 60 * MINS
@@ -125,13 +126,18 @@ class NodeLauncher(threading.Thread):
         if not host:
             raise Exception("Unable to log in via SSH")
 
-        # add all languages to the node
-        self.log.info("Languages are %s" % (",".join(self.scalator.config.languages)))
-        for language in self.scalator.config.languages:
-            host.ssh("add %s language to node" % language,
-                     "python /root/tools/edit_languages.py add %s" %
-                     language, output=True)
+        # render template and copy to config file
+        env = Environment(loader=PackageLoader('scalator', 'templates'))
+        template = env.get_template('rabbit_config')
 
+        result = template.render(languages=','.join(self.scalator.config.languages),
+                                 host=self.scalator.config.rabbit_host,
+                                 username=self.scalator.config.rabbit_user,
+                                 password=self.scalator.config.rabbit_password)
+        host.ssh("copy result to file",
+                 "cat <<EOF > /root/rabbit_config\n"
+                 "%s\n"
+                 "EOF" % result)
 
     def launchNode(self, session):
         start_time = time.time()
@@ -270,6 +276,10 @@ class Scalator(threading.Thread):
         newconfig.private_user = config.get('private-user')
         newconfig.private_key = config.get('private-key')
         newconfig.messages_per_node = config.get('messages-per-node')
+
+        newconfig.rabbit_host = config.get('rabbit-host')
+        newconfig.rabbit_user = config.get('rabbit-user')
+        newconfig.rabbit_password = config.get('rabbit-password')
 
         return newconfig
 

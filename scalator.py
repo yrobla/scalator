@@ -147,7 +147,7 @@ class NodeLauncher(threading.Thread):
         self.node.hostname = hostname
 
         self.log.info("Creating server with hostname %s for node id: %s" % (hostname, self.node_id))
-        server = self.scalator.config.manager.createServer(hostname)
+        server = self.scalator.manager.createServer(hostname)
         self.node.external_id = server.get('id')
         self.node.nodename = server.get('name')
         session.commit()
@@ -276,6 +276,7 @@ class Scalator(threading.Thread):
         newconfig.private_user = config.get('private-user')
         newconfig.private_key = config.get('private-key')
         newconfig.messages_per_node = config.get('messages-per-node')
+        newconfig.max_servers = config.get('max-servers')
 
         newconfig.rabbit_host = config.get('rabbit-host')
         newconfig.rabbit_user = config.get('rabbit-user')
@@ -311,15 +312,17 @@ class Scalator(threading.Thread):
         self.needed_workers = needed_workers
 
     def getNeededNodes(self, session):
-        print "In get needed nodes"
         self.log.debug("Beginning node launch calculation")
         label_demand = self.getNeededWorkers()
 
         nodes = session.getNodes()
 
-        def count_nodes(state):
-            return len([n for n in nodes
-                        if (n.state == state)])
+        def count_nodes(state=None):
+            if state is not None:
+                return len([n for n in nodes
+                            if (n.state == state)])
+            else:
+                return len(nodes)
 
         # Actual need is demand - (ready + building)
         start_demand = 0
@@ -329,6 +332,13 @@ class Scalator(threading.Thread):
         n_test = count_nodes(nodedb.TEST)
         ready = n_ready + n_building + n_test
         demand = max(min_demand - ready, 0)
+
+        n_provider = count_nodes()
+        available = self.config.max_servers - n_provider
+        if available < 0:
+            self.log.warning("Provider over-allocated: limit %d, allocated %d" %
+                (self.config.max_servers, n_provider))
+        demand = min(available, demand)
         self.log.debug("  Deficit: (start: %s min: %s ready: %s)" %
                            (start_demand, min_demand,
                             ready))
@@ -434,7 +444,6 @@ class Scalator(threading.Thread):
                 node.state = nodedb.DELETE
 
     def run(self):
-        print "in run"
         try:
             self.startup()
         except Exception:
@@ -450,6 +459,8 @@ class Scalator(threading.Thread):
 
     def _run(self, session):
         nodes_to_launch = self.getNeededNodes(session)
+        if nodes_to_launch>self.config.max_servers:
+            nodes_to_launch = self.config.max_servers
 
         self.log.info("Need to launch %s nodes" % nodes_to_launch)
         for i in range(nodes_to_launch):

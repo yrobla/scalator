@@ -147,7 +147,7 @@ class NodeLauncher(threading.Thread):
         self.node.hostname = hostname
 
         self.log.info("Creating server with hostname %s for node id: %s" % (hostname, self.node_id))
-        server = self.scalator.manager.createServer(hostname)
+        server = self.scalator.config.manager.createServer(hostname)
         self.node.external_id = server.get('id')
         self.node.nodename = server.get('name')
         session.commit()
@@ -502,6 +502,18 @@ class Scalator(threading.Thread):
 
         node.delete()
         self.log.info("Deleted node id: %s" % node.id)
+
+    def _forceDeleteNode(self, session, node):
+        # Forcing to delete a node
+        if node:
+            try:
+                current_manager = manager.ScalatorManager(self)
+                server = current_manager._client.Droplet.get(node.nodename)
+                server.destroy()
+            except Exception as e:
+                print str(e)
+            node.delete()
+            self.log.info("Forced deletion of node id: %s" % node.id)
 
     def _doPeriodicCheck(self):
         try:

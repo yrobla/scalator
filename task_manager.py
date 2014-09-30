@@ -40,7 +40,6 @@ class TaskManager(threading.Thread):
     log = logging.getLogger("scalator.TaskManager")
 
     def __init__(self, client):
-        print "in task manager"
         super(TaskManager, self).__init__()
         self.daemon = True
         self.queue = Queue.Queue()
@@ -53,7 +52,6 @@ class TaskManager(threading.Thread):
         self.queue.put(None)
 
     def run(self):
-        print "in task run"
         last_ts = 0
         while True:
             task = self.queue.get()
@@ -76,11 +74,8 @@ class TaskManager(threading.Thread):
             self.queue.task_done()
 
     def submitTask(self, task):
-        print "in submit task"
         if not self._running:
             raise ManagerStoppedException(
                 "Manager is no longer running")
-        print "put in queue"
         self.queue.put(task)
-        print "after queue"
         return task.wait()

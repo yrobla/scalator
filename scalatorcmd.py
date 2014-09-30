@@ -39,6 +39,9 @@ class ScalatorCmd(object):
             help='place a node in the DELETE state')
         cmd_delete.set_defaults(func=self.delete)
         cmd_delete.add_argument('id', help='node id')
+        cmd_delete.add_argument('--now',
+                                action='store_true',
+                                help='delete the node in the foreground')
 
         self.args = parser.parse_args()
 
@@ -87,10 +90,13 @@ class ScalatorCmd(object):
         with self.scalator.getDB().getSession() as session:
             node = session.getNode(self.args.id)
 
-            self.scalator.manager = manager.ScalatorManager(self.scalator)
-            self.scalator.manager.start()
-            self.scalator._deleteNode(session, node)
-            self.scalator.manager.stop()
+            if self.args.now:
+                self.scalator._forceDeleteNode(session, node)
+            else:
+                self.scalator.manager = manager.ScalatorManager(self.scalator)
+                self.scalator.manager.start()
+                self.scalator._deleteNode(session, node)
+                self.scalator.manager.stop()
 
     def main(self):
         self.scalator = scalator.Scalator(self.args.config)

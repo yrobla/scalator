@@ -62,7 +62,6 @@ class GetServerTask(Task):
 
 class ListServersTask(Task):
     def main(self, client):
-        print "in list servers task"
         servers = client.Droplet.all()
         return [make_server_dict(server) for server in servers]
 

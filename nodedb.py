@@ -1,5 +1,10 @@
 import time
 
+from sqlalchemy import Table, Column, Integer, String, Text, \
+    MetaData, create_engine, or_
+from sqlalchemy.orm import scoped_session, mapper, relationship, foreign
+from sqlalchemy.orm.session import Session, sessionmaker
+
 # not ready for use.
 BUILDING = 1
 # The machine is ready for use.
@@ -21,11 +26,6 @@ STATE_NAMES = {
     HOLD: 'hold',
     TEST: 'test',
     }
-
-from sqlalchemy import Table, Column, Integer, String, Text, \
-    MetaData, create_engine
-from sqlalchemy.orm import scoped_session, mapper, relationship, foreign
-from sqlalchemy.orm.session import Session, sessionmaker
 
 metadata = MetaData()
 
@@ -150,4 +150,13 @@ class NodeDatabaseSession(object):
         if not nodes:
             return None
         return nodes[0]
+
+    def getNodesToDelete(self, limit):
+        # get the ones in building state, from newer to older
+        # and the ones in ready state, from newer to older as well
+        nodes = self.session().query(Node).filter(
+            (node_table.c.state == BUILDING) | (node_table.c.state == READY)).order_by(
+            node_table.c.state, node_table.c.state_time).limit(limit).all()
+        return nodes
+
 

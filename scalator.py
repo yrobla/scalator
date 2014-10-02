@@ -331,17 +331,22 @@ class Scalator(threading.Thread):
         n_building = count_nodes(nodedb.BUILDING)
         n_test = count_nodes(nodedb.TEST)
         ready = n_ready + n_building + n_test
-        demand = max(min_demand - ready, 0)
 
-        n_provider = count_nodes()
-        available = self.config.max_servers - n_provider
-        if available < 0:
-            self.log.warning("Provider over-allocated: limit %d, allocated %d" %
-                (self.config.max_servers, n_provider))
-        demand = min(available, demand)
-        self.log.debug("  Deficit: (start: %s min: %s ready: %s)" %
-                           (start_demand, min_demand,
-                            ready))
+        if min_demand < ready:
+            # we may need to delete nodes
+            return min_demand - ready
+        else:
+            demand = max(min_demand - ready, 0)
+
+            n_provider = count_nodes()
+            available = self.config.max_servers - n_provider
+            if available < 0:
+                self.log.warning("Provider over-allocated: limit %d, allocated %d" %
+                    (self.config.max_servers, n_provider))
+            demand = min(available, demand)
+            self.log.debug("  Deficit: (start: %s min: %s ready: %s)" %
+                               (start_demand, min_demand,
+                               ready))
 
         return demand
 
@@ -457,14 +462,24 @@ class Scalator(threading.Thread):
                 self.log.exception("Exception in main loop:")
             time.sleep(self.watermark_sleep)
 
+    # delete nodes that are not used
+    def deleteNodes(self, number_of_nodes):
+        nodes_to_delete = self.getDB().getSession().getNodesToDelete(number_of_nodes)
+        for node in nodes_to_delete:
+            self.deleteNode(node.id)
+
     def _run(self, session):
         nodes_to_launch = self.getNeededNodes(session)
-        if nodes_to_launch>self.config.max_servers:
-            nodes_to_launch = self.config.max_servers
+        if nodes_to_launch < 0:
+            # need to delete nodes
+            self.deleteNodes(-nodes_to_launch)
+        else:
+            if nodes_to_launch>self.config.max_servers:
+                nodes_to_launch = self.config.max_servers
 
-        self.log.info("Need to launch %s nodes" % nodes_to_launch)
-        for i in range(nodes_to_launch):
-            self.launchNode(session)
+            self.log.info("Need to launch %s nodes" % nodes_to_launch)
+            for i in range(nodes_to_launch):
+                self.launchNode(session)
 
     def launchNode(self, session):
         try:

@@ -170,7 +170,6 @@ class NodeLauncher(threading.Thread):
         # execute ready script
         self.runReadyScript(self.node)
 
-        # Save the elapsed time for statsd
         dt = int((time.time() - start_time) * 1000)
         self.node.state = nodedb.READY
         self.log.info("Node id: %s is ready" % self.node.id)

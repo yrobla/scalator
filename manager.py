@@ -28,7 +28,7 @@ class CreateServerTask(Task):
         # Try to find the image ID for the version specified
         images= client.Image.all();
         for image in images:
-            if image.name == 'Revelator v'+str(self.args["version"]):
+            if image.name == self.args["version"]:
                 image_id = image.id
                 break
 

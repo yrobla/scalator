@@ -112,7 +112,7 @@ class NodeLauncher(threading.Thread):
 
             if failed:
                 try:
-                    self.scalator._forceDeleteNode(self.node)
+                    self.scalator._forceDeleteNode(session, self.node)
                 except Exception:
                     self.log.exception("Exception deleting node id: %s:" %
                                        self.node_id)
@@ -556,7 +556,7 @@ class Scalator(threading.Thread):
         for node in session.getNodes():
             if node.state != nodedb.READY:
                 continue
-            self._forceDeleteNode(node)
+            self._forceDeleteNode(session, node)
         self.log.debug("Finished periodic check")
 
 class ConfigValue(object):

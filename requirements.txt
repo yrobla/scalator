@@ -1,4 +1,4 @@
-git+https://github.com/Shrugs/skiff.git
+skiff
 python-daemon
 extras
 pika
@@ -12,6 +12,4 @@ six
 prettytable
 apscheduler>=2.1.1,<3.0
 jinja2
-sqlalchemy
-pyyaml
 statsd

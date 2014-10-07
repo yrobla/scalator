@@ -11,6 +11,7 @@ import math
 import pika
 import apscheduler.scheduler
 from jinja2 import Environment, FileSystemLoader
+import statsd
 
 MINS = 60
 HOURS = 60 * MINS
@@ -102,6 +103,7 @@ class NodeLauncher(threading.Thread):
                 start_time = time.time()
                 dt = self.launchNode(session)
                 failed = False
+                statsd_key = 'scalator.launch.ready'
             except Exception as e:
                 self.log.exception("%s launching node id: %s "
                                    "error:" %
@@ -109,6 +111,11 @@ class NodeLauncher(threading.Thread):
                                     self.node_id))
                 dt = int((time.time() - start_time) * 1000)
                 failed = True
+
+            try:
+                self.scalator.launchStats(statsd_key, dt)
+            except Exception:
+                self.log.exception("Exception reporting launch stats")
 
             if failed:
                 try:
@@ -194,6 +201,7 @@ class RabbitListener(threading.Thread):
     def _run(self):
         # periodically listen to queue, to get total messages
         # update needed workers according to messages in queue
+        self.log.debug("in read pika")
         total_messages = 0
         self.connection = pika.BlockingConnection(pika.URLParameters(self.addr))
         for queue in self.scalator.config.rabbit_queues:
@@ -202,7 +210,12 @@ class RabbitListener(threading.Thread):
                 q = channel.queue_declare(queue=queue, passive=True, durable=True, exclusive=False)
                 total_messages += q.method.message_count
 
+        self.log.debug("in total messages")
         self.scalator.setNeededWorkers(int(math.ceil(total_messages/self.scalator.config.messages_per_node)))
+        self.log.debug(total_messages)
+        self.log.debug("here")
+        self.scalator.updateStats(total_messages)
+
         self.connection = None
         time.sleep(WATERMARK_SLEEP)
 
@@ -557,6 +570,18 @@ class Scalator(threading.Thread):
                 continue
             self._forceDeleteNode(session, node)
         self.log.debug("Finished periodic check")
+
+    def updateStats(self, number):
+        base_key = 'scalator.messages'
+
+        c = statsd.StatsClient('localhost', 8125)
+        c.gauge(base_key, number)
+
+    def launchStats(self, key, dt):
+        c = statsd.StatsClient('localhost', 8125)
+        c.timing(key, dt)
+        c.incr(key)
+
 
 class ConfigValue(object):
     pass

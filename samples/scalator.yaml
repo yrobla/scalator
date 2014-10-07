@@ -1,0 +1,31 @@
+cleanup: '* * * * *'
+check: '*/15 * * * *'
+rabbit-publishers:
+    - amqp://localhost:5672
+rabbit-queues:
+    - Revelator_in_queue_en
+    - Revelator_in_queue_nl
+    - Revelator_in_queue_es
+languages:
+    - eng
+    - nld
+    - esp
+dburi: mysql://<<user>>:<<password>@localhost/scalator
+
+cron:
+  check: '*/15 * * * *'
+  cleanup: '*/1 * * * *'
+
+boot-timeout: 3600
+launch-timeout: 60
+messages-per-node: 10
+max-servers: 3
+provider-token: <<digital ocean token>>
+provider-version: Revelator v12 (unstable!)
+provider-size: 32gb
+private-user: root
+private-key: /home/yolanda/.ssh/id_rsa
+
+rabbit-host: 87.111.241.205
+rabbit-user: <<rabbit username>>
+rabbit-password: <<rabbit password>>

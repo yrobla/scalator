@@ -10,7 +10,7 @@ import manager
 import math
 import pika
 import apscheduler.scheduler
-from jinja2 import Environment, PackageLoader
+from jinja2 import Environment, FileSystemLoader
 
 MINS = 60
 HOURS = 60 * MINS
@@ -127,7 +127,7 @@ class NodeLauncher(threading.Thread):
             raise Exception("Unable to log in via SSH")
 
         # render template and copy to config file
-        env = Environment(loader=PackageLoader('scalator', 'templates'))
+        env = Environment(loader=FileSystemLoader('/var/lib/scalator/templates'))
         template = env.get_template('rabbit_config')
 
         result = template.render(languages=','.join(self.scalator.config.languages),

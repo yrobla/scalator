@@ -48,7 +48,7 @@ class NodeCompleteThread(threading.Thread):
                            self.nodename)
             return
 
-        if node.state == nodedb.HOLD:
+        if int(node.state) == nodedb.HOLD:
             self.log.info("Node id: %s is complete but in HOLD state" %
                           node.id)
             return
@@ -67,6 +67,7 @@ class NodeDeleter(threading.Thread):
     def run(self):
         try:
             with self.scalator.getDB().getSession() as session:
+                self.log.debug("in  node delete %s" % self.node_id)
                 node = session.getNode(self.node_id)
                 self.scalator._deleteNode(session, node)
         except Exception:
@@ -100,11 +101,14 @@ class NodeLauncher(threading.Thread):
                 return
 
             try:
+                self.log.debug("in run node")
                 start_time = time.time()
                 dt = self.launchNode(session)
                 failed = False
                 statsd_key = 'scalator.launch.ready'
             except Exception as e:
+                self.log.debug("fail")
+                self.log.debug(str(e))
                 self.log.exception("%s launching node id: %s "
                                    "error:" %
                                    (e.__class__.__name__,
@@ -118,6 +122,7 @@ class NodeLauncher(threading.Thread):
                 self.log.exception("Exception reporting launch stats")
 
             if failed:
+                self.log.debug("i delete node")
                 try:
                     self.scalator._forceDeleteNode(session, self.node)
                 except Exception:
@@ -232,7 +237,7 @@ class Scalator(threading.Thread):
         self.config = None
         self._delete_threads = {}
         self._delete_threads_lock = threading.Lock()
-        self.needed_workers = 0
+        self.needed_workers = None
         self.apsched = None
 
     def stop(self):
@@ -257,7 +262,6 @@ class Scalator(threading.Thread):
 
         for name, default in [
             ('cleanup', '* * * * *'),
-            ('check', '*/15 * * * *'),
             ]:
             c = Cron()
             c.name = name
@@ -327,6 +331,10 @@ class Scalator(threading.Thread):
         self.log.debug("Beginning node launch calculation")
         label_demand = self.getNeededWorkers()
 
+        # if no workers set, demand still not calculated
+        if label_demand is None:
+            return 0
+
         nodes = session.getNodes()
 
         def count_nodes(state=None):
@@ -364,18 +372,23 @@ class Scalator(threading.Thread):
 
     def cleanupOneNode(self, session, node):
         now = time.time()
+        self.log.debug("in cleanup")
+        self.log.debug("node id %s - state %s - ip %s" % (str(node.id), str(node.state), str(node.ip)))
         time_in_state = now - node.state_time
-        if (node.state in [nodedb.READY, nodedb.HOLD]):
+        if (int(node.state) in [nodedb.READY, nodedb.HOLD]):
             return
         delete = False
-        if (node.state == nodedb.DELETE):
+        self.log.debug("need to delete")
+        if (int(node.state) == nodedb.DELETE):
             delete = True
-        elif (node.state == nodedb.TEST and
+        elif (int(node.state) == nodedb.TEST and
               time_in_state > TEST_CLEANUP):
             delete = True
         elif time_in_state > NODE_CLEANUP:
+            self.log.debug("more than timeout")
             delete = True
         if delete:
+            self.log.debug("delete node %s" % node.id)
             try:
                 self.deleteNode(node.id)
             except Exception:
@@ -398,11 +411,13 @@ class Scalator(threading.Thread):
             for node in session.getNodes():
                 node_ids.append(node.id)
 
+        self.log.debug("in periodic cleanup")
         for node_id in node_ids:
             try:
                 with self.getDB().getSession() as session:
                     node = session.getNode(node_id)
                     if node:
+                        self.log.debug("in cleanup %s" % str(node_id))
                         self.cleanupOneNode(session, node)
             except Exception:
                 self.log.exception("Exception cleaning up node id %s:" %
@@ -417,8 +432,7 @@ class Scalator(threading.Thread):
 
     def reconfigureCrons(self, config):
         cron_map = {
-            'cleanup': self._doPeriodicCleanup,
-            'check': self._doPeriodicCheck
+            'cleanup': self._doPeriodicCleanup
         }
 
         if not self.apsched:
@@ -476,7 +490,10 @@ class Scalator(threading.Thread):
 
     # delete nodes that are not used
     def deleteNodes(self, number_of_nodes):
+        self.log.debug("in delete nodes")
         nodes_to_delete = self.getDB().getSession().getNodesToDelete(number_of_nodes)
+        self.log.debug("need to delete")
+        self.log.debug(nodes_to_delete)
         for node in nodes_to_delete:
             self.deleteNode(node.id)
 
@@ -512,6 +529,7 @@ class Scalator(threading.Thread):
             self._delete_threads_lock.acquire()
             if node_id in self._delete_threads:
                 return
+            self.log.debug("I need to delete %s" % node_id)
             t = NodeDeleter(self, node_id)
             self._delete_threads[node_id] = t
             t.start()
@@ -521,13 +539,14 @@ class Scalator(threading.Thread):
             self._delete_threads_lock.release()
 
     def _deleteNode(self, session, node):
+        self.log.debug("in _delete node %s" % node.id)
         if node.state_time:
             self.log.debug("Deleting node id: %s which has been in %s "
                            "state for %s hours" %
-                           (node.id, nodedb.STATE_NAMES[node.state],
+                           (node.id, nodedb.STATE_NAMES[int(node.state)],
                            (time.time() - node.state_time) / (60 * 60)))
         # Delete a node
-        if node.state != nodedb.DELETE:
+        if int(node.state) != nodedb.DELETE:
             # Don't write to the session if not needed.
             node.state = nodedb.DELETE
 
@@ -549,27 +568,9 @@ class Scalator(threading.Thread):
                 server = current_manager._client.Droplet.get(node.nodename)
                 server.destroy()
             except Exception as e:
-                print str(e)
+                self.log.debug(str(e))
             node.delete()
             self.log.info("Forced deletion of node id: %s" % node.id)
-
-    def _doPeriodicCheck(self):
-        try:
-            with self.getDB().getSession() as session:
-                self.periodicCheck(session)
-        except Exception:
-            self.log.exception("Exception in periodic chack:")
-
-    def periodicCheck(self, session):
-        # This function should be run periodically to make sure we can
-        # still access hosts via ssh.
-
-        self.log.debug("Starting periodic check")
-        for node in session.getNodes():
-            if node.state != nodedb.READY:
-                continue
-            self._forceDeleteNode(session, node)
-        self.log.debug("Finished periodic check")
 
     def updateStats(self, number):
         base_key = 'scalator.messages'

@@ -20,12 +20,14 @@ def iterate_timeout(max_seconds, purpose):
 def ssh_connect(ip, username, connect_kwargs={}, timeout=60):
     for count in iterate_timeout(timeout, "ssh access"):
         try:
-            client = SSHClient(ip, username, **connect_kwargs)
+            log.debug('Connecting to ssh to %s with user %s' % (ip, username))
+            client = SSHClient(ip, username, log=log, **connect_kwargs)
             break
         except paramiko.AuthenticationException as e:
             # This covers the case where the cloud user is created
             # after sshd is up (Fedora for example)
             log.info('Password auth exception. Try number %i...' % count)
+            log.debug(str(e))
         except socket.error as e:
             if e[0] not in [errno.ECONNREFUSED, errno.EHOSTUNREACH]:
                 log.exception('Exception while testing ssh access:')

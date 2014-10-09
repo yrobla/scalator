@@ -67,7 +67,7 @@ class ScalatorCmd(object):
                     continue
                 t.add_row([node.id, node.hostname,
                            node.nodename, node.external_id, node.ip,
-                           nodedb.STATE_NAMES[node.state],
+                           nodedb.STATE_NAMES[int(node.state)],
                            '%.02f' % ((now - node.state_time) / 3600)])
         print t
 

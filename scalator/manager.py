@@ -86,8 +86,6 @@ class ScalatorManager(TaskManager):
         return self.submitTask(CreateServerTask(**create_args))
 
     def getServer(self, server_id):
-        print "in get server"
-        print server_id
         try:
             server = self._client.Droplet.get(server_id)
         except Exception as e:

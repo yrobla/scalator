@@ -10,7 +10,7 @@ logging.getLogger('pika').setLevel(logging.INFO)
 class TestScalator(object):
     def __init__(self):
         self.args = None
-        self.addr = 'amqp://guest:guest@localhost:5672'
+        self.addr = 'amqp://testing:test2014@localhost:5672/test'
 
     def parse_arguments(self):
         parser = argparse.ArgumentParser(description='TestScalator')
@@ -28,16 +28,23 @@ class TestScalator(object):
         else:
             return 'Revelator_in_queue_%s' % language
 
+    def get_out_queue_name(self, language):
+        if language == 'test':
+            return 'Revelator_out_queue_en'
+        else:
+            return 'Revelator_out_queue_%s' % language
+
     # publish a message to the specified queue
     def test_queue(self, message_number, language):
-        exchange_name = 'Test_'+self.get_in_queue_name(language)
         test_id = 'id_%s_%s' % (str(message_number), language)
         body = unicode('testing message')
-        print test_id
-        properties = pika.BasicProperties(content_encoding='utf-8', correlation_id=test_id, delivery_mode=2)
+        print self.get_out_queue_name(language)
+        properties = pika.BasicProperties(correlation_id=test_id, delivery_mode=2)
         channel = self.connection.channel()
-        channel.queue_declare(queue=exchange_name, durable=True, auto_delete=False, passive=True, exclusive=True)
-        channel.basic_publish(exchange_name, '', body, properties=properties, mandatory=True) 
+        channel.queue_declare(queue=self.get_out_queue_name(language), durable=True)
+        result = channel.basic_publish(exchange='Test_Revelator_test_queue', routing_key='', body=body, properties=properties, mandatory=True)
+        print result
+        #, properties=properties, mandatory=True) 
     
     def main(self):
         # connect to pika, and send the number of messages specified for each language
@@ -45,7 +52,7 @@ class TestScalator(object):
         for language in self.languages:
             for i in range(1, int(self.args.num_tests)):
                 self.test_queue(i,language)
-        self.connection.close()
+        #self.connection.close()
 
 
 def main():
@@ -56,3 +63,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

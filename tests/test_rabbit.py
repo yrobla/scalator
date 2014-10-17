@@ -10,7 +10,7 @@ logging.getLogger('pika').setLevel(logging.INFO)
 class TestScalator(object):
     def __init__(self):
         self.args = None
-        self.addr = 'amqp://testing:test2014@localhost:5672/test'
+        self.addr = 'amqp://testing:test2014@localhost:5672'
 
     def parse_arguments(self):
         parser = argparse.ArgumentParser(description='TestScalator')
@@ -24,7 +24,7 @@ class TestScalator(object):
     
     def get_in_queue_name(self, language):
         if language == 'test':
-            return 'Revelator_test_queue'
+            return 'Revelator_in_queue_en'
         else:
             return 'Revelator_in_queue_%s' % language
 
@@ -37,22 +37,22 @@ class TestScalator(object):
     # publish a message to the specified queue
     def test_queue(self, message_number, language):
         test_id = 'id_%s_%s' % (str(message_number), language)
-        body = unicode('testing message')
-        print self.get_out_queue_name(language)
+        print test_id
+
+        with open ("test_message.txt", "r") as myfile:
+             body=myfile.read().replace('\n', '')
+
         properties = pika.BasicProperties(correlation_id=test_id, delivery_mode=2)
         channel = self.connection.channel()
-        channel.queue_declare(queue=self.get_out_queue_name(language), durable=True)
         result = channel.basic_publish(exchange='Test_Revelator_test_queue', routing_key='', body=body, properties=properties, mandatory=True)
-        print result
-        #, properties=properties, mandatory=True) 
     
     def main(self):
         # connect to pika, and send the number of messages specified for each language
         self.connection = pika.BlockingConnection(pika.URLParameters(self.addr))
         for language in self.languages:
-            for i in range(1, int(self.args.num_tests)):
+            for i in range(0, int(self.args.num_tests)):
                 self.test_queue(i,language)
-        #self.connection.close()
+        self.connection.close()
 
 
 def main():

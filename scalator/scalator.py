@@ -117,6 +117,7 @@ class NodeLauncher(threading.Thread):
                 failed = True
 
             try:
+                statsd_key = 'scalator.launch.ready'
                 self.scalator.launchStats(statsd_key, dt)
             except Exception:
                 self.log.exception("Exception reporting launch stats")
@@ -160,13 +161,19 @@ class NodeLauncher(threading.Thread):
 
         self.log.info("Creating server with hostname %s for node id: %s" % (hostname, self.node_id))
         server = self.scalator.manager.createServer(hostname)
-        self.node.external_id = server.get('id')
-        self.node.nodename = server.get('name')
-        session.commit()
+        try:
+            self.node.external_id = server.get('id')
+            self.node.nodename = server.get('name')
+            session.commit()
+        except Exception as e:
+            self.log.debug("Error updating node: %s" % str(e))
 
-        ip = server.get('public_v4')
-        if not ip:
-            raise LaunchNetworkException("Unable to find public IP of server")
+        if server:
+            ip = server.get('public_v4')
+            if not ip:
+                raise LaunchNetworkException("Unable to find public IP of server")
+        else:
+            raise Exception("Unable to create server")        
 
         # now execute fire revelator
         self.node.ip = ip.ip_address

@@ -155,7 +155,8 @@ class NodeDatabaseSession(object):
         # get the ones in building state, from newer to older
         # and the ones in ready state, from newer to older as well
         nodes = self.session().query(Node).filter(
-            (node_table.c.state == BUILDING) | (node_table.c.state == READY)).order_by(
+            ( node_table.c.state == BUILDING ) | 
+              (node_table.c.state == READY)).order_by(
             node_table.c.state, node_table.c.state_time).limit(limit).all()
         return nodes
 

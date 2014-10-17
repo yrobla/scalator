@@ -25,22 +25,28 @@ class NotFound(Exception):
 
 class CreateServerTask(Task):
     def main(self, client):
+        image_id = None
         # Try to find the image ID for the version specified
+        image = client.Image.get(self.args["version"])
         images= client.Image.all();
         for image in images:
-            if image.name == self.args["version"]:
+            if hasattr(image, 'id') and image.id == self.args["version"]:
                 image_id = image.id
                 break
 
         # Create the droplet
-        droplet_name = 'rev.'+self.args['name']
-        droplet = client.Droplet.create(name=droplet_name, region='ams2',
-            size=self.args["size"],
-            image=image_id, private_networking=True,
-            ssh_keys=client.Key.all())
-        droplet.wait_till_done()
-        droplet = droplet.refresh()
-        return make_server_dict(droplet)
+        if image_id:
+            droplet_name = 'rev.'+self.args['name']
+            droplet = client.Droplet.create(name=droplet_name, region='ams2',
+                size=self.args["size"],
+                image=image_id, private_networking=True,
+                ssh_keys=client.Key.all())
+            droplet.wait_till_done()
+            droplet = droplet.refresh()
+            return make_server_dict(droplet)
+        else:
+            # no image found, no server created
+            return None
 
 def make_server_dict(server):
     d = dict(id=str(server.id),
@@ -168,7 +174,11 @@ class ScalatorManager(TaskManager):
                     raise Exception("Unable to log in via SSH")
 
                 # write a flag file
-                host.ssh("send delete flag file", "touch /root/startstop/STOP")
+                try:
+                    host.ssh("send delete flag file", "touch /root/startstop/STOP")
+                except:
+                    # still not ready to delete it
+                    pass
 
                 done = True
             except NotFound:

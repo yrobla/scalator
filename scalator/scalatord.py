@@ -63,7 +63,8 @@ class ScalatorDaemon(object):
         parser.add_argument('-d', dest='nodaemon', action='store_true',
                             help='do not run as a daemon')
         parser.add_argument('-l', dest='logconfig',
-                            help='path to log config file')
+                            help='path to log config file',
+                            default='/etc/scalator/logging.conf')
         parser.add_argument('-p', dest='pidfile',
                             help='path to pid file',
                             default='/var/run/scalator/scalator.pid')

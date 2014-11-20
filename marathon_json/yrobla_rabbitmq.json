@@ -1,0 +1,38 @@
+{
+  "id": "yroblarabbitmq",
+  "instances": 1,
+  "mem": 128,
+  "cpus": 0.5,
+  "ports": [31672, 31673, 15672],
+  "requirePorts": true,
+  "container": {
+    "type": "DOCKER",
+    "docker": {
+      "image": "yrobla/docker-rabbitmq:latest",
+      "network": "BRIDGE",
+      "portMappings": [
+        { "containerPort": 31672, "hostPort": 31672, "servicePort": 31672, "protocol": "tcp" },
+        { "containerPort": 31673, "hostPort": 31673, "servicePort": 31673, "protocol": "tcp" },
+        { "containerPort": 15672, "servicePort": 15672, "protocol": "tcp" }
+      ]
+    }
+  },
+  "volumes": [
+      {
+        "containerPath": "/data/log",
+        "hostPath": "/var/data/log",
+        "mode": "RW"
+      },
+      {
+        "containerPath": "/data/mnesia",
+        "hostPath": "/var/data/mnesia",
+        "mode": "RW"
+      }
+    ],
+  "env": {
+    "MARATHON_ENDPOINT":"188.226.174.157:8080",
+    "RABBITMQ_USER":"admin",
+    "RABBITMQ_PASS":"revisely2014"
+  }
+}
+

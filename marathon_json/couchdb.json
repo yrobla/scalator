@@ -1,0 +1,30 @@
+{
+  "id": "couchdb",
+  "cpus": 0.5,
+  "instances": 1,
+  "container": {
+    "type": "DOCKER",
+    "docker": {
+      "image": "tutum/couchdb",
+      "network": "BRIDGE",
+      "portMappings": [
+        { "containerPort": 5984, "hostPort": 0, "servicePort": 5984, "protocol": "tcp" }
+      ]
+    }
+  },
+  "healthChecks": [
+    {
+      "protocol": "TCP",
+      "portIndex": 0,
+      "path": "/",
+      "gracePeriodSeconds": 5,
+      "intervalSeconds": 20,
+      "maxConsecutiveFailures": 3
+    }
+  ],
+  "env": {
+    "COUCHDB_PASS": "admin"
+  }
+
+}
+

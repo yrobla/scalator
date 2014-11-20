@@ -1,0 +1,17 @@
+{
+  "id": "cassandra",
+  "instances": 1,
+  "mem": 512,
+  "ports": [7199, 7000, 7001, 9160, 9042],
+  "container": {
+    "type": "DOCKER",
+    "docker": {
+      "image": "abh1nav/cassandra"
+    }
+  },
+  "env": {
+    "OPS_IP": "10.129.152.223"
+  }
+
+}
+

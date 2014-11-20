@@ -1,0 +1,50 @@
+{
+  "id": "cassandra01",
+  "instances": 1,
+  "mem": 512,
+  "ports": [7199, 7000, 7001, 9160, 9042],
+  "container": {
+    "type": "DOCKER",
+    "docker": {
+      "image": "abh1nav/cassandra",
+      "network": "BRIDGE",
+      "portMappings": [
+        {
+          "containerPort": 7199,
+          "hostPort": 0,
+          "servicePort": 7199,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 7000,
+          "hostPort": 0,
+          "servicePort": 7000,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 7001,
+          "hostPort": 0,
+          "servicePort": 7001,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 9160,
+          "hostPort": 0,
+          "servicePort": 9160,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 9042,
+          "hostPort": 0,
+          "servicePort": 9042,
+          "protocol": "tcp"
+        }
+      ]
+    }
+  },
+  "env": {
+    "SEED_IP": "10.129.152.223",
+    "OPS_IP": "10.129.152.96"
+  }
+}
+

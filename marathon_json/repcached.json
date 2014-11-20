@@ -1,0 +1,28 @@
+{
+  "id": "repcached",
+  "cpus": 0.5,
+  "mem": 64.0,
+  "name": "repcached",
+  "instances": 1,
+  "container": {
+    "type": "DOCKER",
+    "docker": {
+      "image": "yrobla/repcached",
+      "network": "BRIDGE",
+      "portMappings": [
+        { "containerPort": 11211, "hostPort": 0, "servicePort": 11211, "protocol": "tcp" }
+      ]
+    }
+  },
+  "healthChecks": [
+    {
+      "protocol": "TCP",
+      "portIndex": 0,
+      "path": "/",
+      "gracePeriodSeconds": 5,
+      "intervalSeconds": 20,
+      "maxConsecutiveFailures": 3
+    }
+  ]
+}
+

@@ -1,0 +1,22 @@
+{
+  "id": "opscenter",
+  "instances": 1,
+  "mem": 512,
+  "ports": [8888],
+  "container": {
+    "type": "DOCKER",
+    "docker": {
+      "image": "abh1nav/opscenter",
+      "network": "BRIDGE",
+      "portMappings": [
+        {
+          "containerPort": 8888,
+          "hostPort": 0,
+          "servicePort": 8888,
+          "protocol": "tcp"
+        }
+      ]
+    }
+  }
+}
+
